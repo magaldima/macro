@@ -7,6 +7,7 @@ import (
 	"github.com/magaldima/macro/common"
 	"github.com/magaldima/macro/controller"
 	microclientset "github.com/magaldima/macro/pkg/client/clientset/versioned"
+	"k8s.io/client-go/kubernetes"
 )
 
 func main() {
@@ -23,15 +24,16 @@ func main() {
 		configMap = common.DefaultConfigMapName(common.DefaultMacroControllerDeploymentName)
 	}
 
-	microclientset := microclientset.NewForConfigOrDie(config)
+	kubeclientset := kubernetes.NewForConfigOrDie(restConfig)
+	microclientset := microclientset.NewForConfigOrDie(restConfig)
 
-	wfController := controller.NewMacroController(config, kubeclientset, microclientset, rootArgs.configMap)
-	err = controller.ResyncConfig()
+	mc := controller.NewMacroController(restConfig, kubeclientset, microclientset, configMap)
+	err = mc.ResyncConfig()
 	if err != nil {
 		panic(err)
 	}
 
-	go controller.Run(context.Background(), 1, 1)
+	go mc.Run(context.Background(), 1, 1)
 
 	// Wait forever
 	select {}

@@ -60,11 +60,11 @@ func (oc *operationCtx) operate() {
 	defer func() {
 		if r := recover(); r != nil {
 			if rerr, ok := r.(error); ok {
-				woc.markWorkflowError(rerr, true)
+				oc.markServiceError(rerr, true)
 			} else {
-				woc.markWorkflowPhase(wfv1.NodeError, true, fmt.Sprintf("%v", r))
+				oc.markServiceStatus(v1alpha1.NodeError, true, fmt.Sprintf("%v", r))
 			}
-			woc.log.Errorf("Recovered from panic: %+v\n%s", r, debug.Stack())
+			oc.log.Errorf("Recovered from panic: %+v\n%s", r, debug.Stack())
 		}
 	}()
 	oc.log.Infof("processing microservice")
@@ -147,6 +147,50 @@ func (oc *operationCtx) reapplyUpdate(clientset clientset.MicroServiceInterface)
 		oc.log.Warnf("Update retry attempt %d failed: %v", attempt, err)
 		if attempt > 5 {
 			return err
+		}
+	}
+}
+
+func (oc *operationCtx) markServiceFailed(message string) {
+	oc.markServiceStatus(v1alpha1.NodeFailed, true, message)
+}
+
+func (oc *operationCtx) markServiceError(err error, markCompleted bool) {
+	oc.markServiceStatus(v1alpha1.NodeError, markCompleted, err.Error())
+}
+
+// markServicePhase is a convenience method to set the phase of the workflow with optional message
+// optionally marks the workflow completed, which sets the finishedAt timestamp and completed label
+func (oc *operationCtx) markServiceStatus(status v1alpha1.MicroStatus, markCompleted bool, message ...string) {
+	if oc.obj.Status.Status != status {
+		oc.log.Infof("Updated status %s -> %s", oc.obj.Status.Status, status)
+		oc.updated = true
+		oc.obj.Status.Status = status
+		if oc.obj.ObjectMeta.Labels == nil {
+			oc.obj.ObjectMeta.Labels = make(map[string]string)
+		}
+		oc.obj.ObjectMeta.Labels[common.LabelKeyStatus] = string(status)
+	}
+	if oc.obj.Status.StartedAt.IsZero() {
+		oc.updated = true
+		oc.obj.Status.StartedAt = metav1.Time{Time: time.Now().UTC()}
+	}
+	if len(message) > 0 && oc.obj.Status.Message != message[0] {
+		oc.log.Infof("Updated message %s -> %s", oc.obj.Status.Message, message[0])
+		oc.updated = true
+		oc.obj.Status.Message = message[0]
+	}
+
+	switch status {
+	case v1alpha1.NodeFailed, v1alpha1.NodeError:
+		if markCompleted {
+			oc.log.Infof("Marking microservice decommissioned")
+			oc.obj.Status.DecommissionedAt = metav1.Time{Time: time.Now().UTC()}
+			if oc.obj.ObjectMeta.Labels == nil {
+				oc.obj.ObjectMeta.Labels = make(map[string]string)
+			}
+			oc.obj.ObjectMeta.Labels[common.LabelKeyDecommissioned] = "true"
+			oc.updated = true
 		}
 	}
 }

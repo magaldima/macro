@@ -157,13 +157,13 @@ func (mc *MacroController) processNextItem() bool {
 	if err != nil {
 		log.Warnf("Failed to unmarshal key '%s' to microservice object: %v", key, err)
 		oc := newMicroServiceOperationCtx(&micro, mc)
-		oc.markWorkflowFailed(fmt.Sprintf("invalid spec: %s", err.Error()))
+		oc.markServiceFailed(fmt.Sprintf("invalid spec: %s", err.Error()))
 		oc.persistUpdates()
 		return true
 	}
 
-	if micro.ObjectMeta.Labels[common.LabelKeyComplete] == "true" {
-		// can get here if we already added the completed=true label,
+	if micro.ObjectMeta.Labels[common.LabelKeyDecommissioned] == "true" {
+		// can get here if we already added the decommissioned=true label,
 		// but we are still draining the controller's workflow workqueue
 		return true
 	}
@@ -273,7 +273,7 @@ func (mc *MacroController) tweakMicroservicelist(options *metav1.ListOptions) {
 	options.FieldSelector = fields.Everything().String()
 
 	// completed notin (true)
-	incompleteReq, err := labels.NewRequirement(common.LabelKeyComplete, selection.NotIn, []string{"true"})
+	incompleteReq, err := labels.NewRequirement(common.LabelKeyDecommissioned, selection.NotIn, []string{"true"})
 	if err != nil {
 		panic(err)
 	}
@@ -398,8 +398,8 @@ func (mc *MacroController) newMicroPodWatch() *cache.ListWatch {
 	resource := "pods"
 	namespace := mc.Config.Namespace
 	fieldSelector := fields.ParseSelectorOrDie("status.phase!=Pending")
-	// completed=false
-	incompleteReq, _ := labels.NewRequirement(common.LabelKeyComplete, selection.Equals, []string{"false"})
+	// decommissioned=false
+	incompleteReq, _ := labels.NewRequirement(common.LabelKeyDecommissioned, selection.Equals, []string{"false"})
 	labelSelector := labels.NewSelector().
 		Add(*incompleteReq).
 		Add(mc.instanceIDRequirement())

@@ -22,8 +22,11 @@ const (
 	// LabelKeyMicroservice is a label applied to microservice pods to indicate the name of the microservice
 	LabelKeyMicroservice = microservice.FullName + "/name"
 
-	// LabelKeyComplete is the label to mark microservices as complete
-	LabelKeyComplete = microservice.FullName + "/complete"
+	// LabelKeyStatus is the label to mark microservices to indicate their status
+	LabelKeyStatus = microservice.FullName + "/status"
+
+	// LabelKeyDecommissioned is the label to mark microservices as decommissioned
+	LabelKeyDecommissioned = microservice.FullName + "/decommissioned"
 
 	// EnvVarNamespace contains the namespace of the controller & jobs
 	EnvVarNamespace = "SENSOR_NAMESPACE"
