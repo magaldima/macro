@@ -6,8 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/argoproj/argo/errors"
-	unstructutil "github.com/argoproj/argo/util/unstructured"
 	"github.com/ghodss/yaml"
 	log "github.com/sirupsen/logrus"
 	apiv1 "k8s.io/api/core/v1"
@@ -233,7 +231,7 @@ func (mc *MacroController) ResyncConfig() error {
 	cmClient := mc.kubeclientset.CoreV1().ConfigMaps(namespace)
 	cm, err := cmClient.Get(mc.ConfigMap, metav1.GetOptions{})
 	if err != nil {
-		return errors.InternalWrapError(err)
+		return err
 	}
 	mc.ConfigMapNS = cm.Namespace
 	return mc.updateConfig(cm)
@@ -242,12 +240,12 @@ func (mc *MacroController) ResyncConfig() error {
 func (mc *MacroController) updateConfig(cm *apiv1.ConfigMap) error {
 	configStr, ok := cm.Data[common.MacroControllerConfigMapKey]
 	if !ok {
-		return errors.Errorf(errors.CodeBadRequest, "ConfigMap '%s' does not have key '%s'", mc.ConfigMap, common.MacroControllerConfigMapKey)
+		return fmt.Errorf("ConfigMap '%s' does not have key '%s'", mc.ConfigMap, common.MacroControllerConfigMapKey)
 	}
 	var config MacroControllerConfig
 	err := yaml.Unmarshal([]byte(configStr), &config)
 	if err != nil {
-		return errors.InternalWrapError(err)
+		return err
 	}
 	log.Printf("macro controller configuration from %s:\n%s", mc.ConfigMap, configStr)
 	mc.Config = config
@@ -300,7 +298,7 @@ func (mc *MacroController) newMicroserviceInformer() cache.SharedIndexInformer {
 		Version:      "v1alpha1",
 		ShortNames:   []string{"micro"},
 	}
-	informer := unstructutil.NewFilteredUnstructuredInformer(
+	informer := common.NewFilteredUnstructuredInformer(
 		resource,
 		dclient,
 		mc.Config.Namespace,
